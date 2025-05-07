@@ -1,0 +1,55 @@
+//Navier-Stokes方程
+real miu=0.01;
+func real u1exact(real t) {
+  return (-x^2*y*(x-1)*(3*y -2)*exp(-t));
+}
+func real u2exact(real t) {
+  return  x*y^2*(y-1)*(3*x-2)*exp(-t);
+}
+func real pexact(real t){
+  return (2*x-1)*(2*y-1)*exp(-t);
+} 
+func real u1x(real t){
+  return (-9* x^2 *y^2 + 6 *x^2* y + 6* x *y^2 - 4 *x* y)*exp(-t);
+}
+func real u1y(real t){
+  return (-6 *x^3 *y + 2* x^3 + 6 *x^2 *y - 2* x^2)*exp(-t);
+}
+func real u2x(real t){
+  return (6 *x *y^3 - 6 *x *y^2 - 2 *y^3 + 2 *y^2)*exp(-t);
+}
+func real u2y(real t){
+  return (9 *x^2 *y^2 - 6 *x^2 *y - 6 *x *y^2 + 4 *x *y)*exp(-t);
+}
+func real deltau1(real t){
+  return exp(-t)*(-6 *x^3 + 6* x^2 - 18 *x *y^2 + 12 *x *y + 6 *y^2 - 4* y);
+}
+func real deltau2(real t){
+  return exp(-t)*(18 *x^2 *y - 6 *x^2 - 12 *x *y + 4 *x + 6 *y^3 - 6 *y^2);
+}
+func real f1(real t){
+  return -u1exact(t)+u1exact(t)*u1x(t)+u2exact(t)*u1y(t)-miu*deltau1(t)+ 2*(2*y - 1)* exp(-t); //
+}
+func real f2(real t){
+  return -u2exact(t)+u1exact(t)*u2x(t)+u2exact(t)*u2y(t)-miu*deltau2(t)+ 2*(2*x - 1) * exp(-t) ;
+}
+func real g2(real t){
+  return 4*miu*y^2*(1-y)*exp(-t);
+}
+func real g3(real t){
+  return 4*miu*x^2*(1-x)*exp(-t);
+}
+
+//扩散方程
+func real afunc (real k){
+    return 1+k^2;
+}
+func real fdunc (real k){
+    return -k+2*pi^2*(1+k^2)*k;
+}
+func real gexact(real t){
+    return -2*pi^2*exp(-3*t)*sin(pi*x)*sin(pi*y)*(cos(pi*x)^2*sin(pi*y)^2 + cos(pi*y)^2*sin(pi*x)^2);
+}
+func real uexact(real t){
+    return exp(-t)*sin(pi*x)*sin(pi*y);
+}

@@ -1,0 +1,143 @@
+load "msh3"
+int nn=4;
+real T=0.25;real eps=1e-6;
+real[int] aerr(4),order(4);
+include "Exact.edp"
+for(int meshi=0;meshi<4;meshi++){
+    mesh Th=square(nn,nn,[x,y]);
+    fespace Vh(Th,[P2,P2]);
+    fespace VVh(Th,P2);
+    fespace Wh(Th,P1);
+    Vh [u1n,u2n],[u1nsubtract1,u2nsubtract1],[uzawad1,uzawad2],[u1temp,u2temp],[v1,v2];
+    cout<<uzawad1[].n<<endl;
+    Wh pn,pnsubtract1,ptemp,q;VVh project=-1,f1n,f2n,g2n,g3n;//在为-1的时候是可行的速度是越来越慢，但1速度越来越快
+    real t=0;
+    int tnum;
+    tnum=int(nn^(1.25)/4+1);
+    real dt=T/tnum;
+    real rho=miu;
+    real[int] tan2=[0,1],tan3=[-1,0];
+    // 将任意实数 x 截断到 [-1, 1] 范围
+    macro satur(x) ( max(-1., min(1., x)) ) // EOM
+    macro epsilon(u1,u2) [dx(u1),dy(u2),(dy(u1)+dx(u2))/sqrt(2)]//
+    macro div(u,v) (dx(u)+dy(v)  )//
+    macro grad(u) [dx(u),dy(u)] //
+
+    varf a([u1,u2],[v1,v2])= int2d(Th) (miu*epsilon(u1,u2)'*epsilon(v1,v2)+u1*v1/dt+u2*v2/dt)
+    +on(1,2,4,u1=0)+on(1,3,4,u2=0);
+
+    varf rectifieda([u1,u2],[v1,v2])=int2d(Th) (miu*epsilon(u1,u2)'*epsilon(v1,v2)+u1*v1/dt+u2*v2/dt)
+    +int2d(Th)(((u1temp*dx(u1)+u2temp*dy(u1))*(v1)+(u1temp*dx(u2)+u2temp*dy(u2))*v2))
+    +on(1,2,4,u1=0)+on(1,3,4,u2=0);
+
+    varf mass([u1,u2],[v1,v2])=int2d(Th)(u1*v1+u2*v2)+int2d(Th)(f1n*v1+f2n*v2)+on(1,2,4,u1=0)+on(1,3,4,u2=0); //mass matrix
+
+    varf b([u1,u2],[q]) =int2d(Th) (-dx(u1)*q-dy(u2)*q);//+int2d(Th) (dx(u1old)*q+dy(u2old)*q);//+on(1,2,4,u1=0)+on(1,3,4,u2=0);//
+
+    varf d([v1,v2],[w1,w2])=int2d(Th)(((u1temp*dx(v1)+u2temp*dy(v1))*(w1)+(u1temp*dx(v2)+u2temp*dy(v2))*w2))
+        +on(1,2,4,v1=0)+on(1,3,4,v2=0);
+
+    varf firstright([u1,u2],[v1,v2])=    int2d(Th)(u1nsubtract1*v1/dt+u2nsubtract1*v2/dt+f1n*v1+f2n*v2)
+        -int1d(Th,2)((project*g2n*v2))+int1d(Th,3)((project*g3n*v1))
+        +on(1,2,4,u1=0)+on(1,3,4,u2=0);
+
+    varf secondrightNv([v1,v2],[w1,w2])=int2d(Th)(((u1temp*dx(u1temp)+u2temp*dy(u1temp))*(w1)+(u1temp*dx(u2temp)+u2temp*dy(u2temp))*w2))
+        +on(1,2,4,v1=0)+on(1,3,4,v2=0);
+
+    varf secondrightAv([u1,u2],[v1,v2])=int2d(Th)(miu*epsilon(u1temp,u2temp)'*epsilon(v1,v2)+u1temp*v1/dt+u2temp*v2/dt)
+        +on(1,2,4,u1=0)+on(1,3,4,u2=0); //mass matrix
+
+    varf secondrightBv([u1,u2],[q])=int2d(Th) (-dx(u1temp)*q-dy(u2temp)*q);//+on(1,2,4,u1=0)+on(1,3,4,u2=0);//
+
+    varf secondrightBp([q],[u1,u2])=int2d(Th) (-dx(u1)*ptemp-dy(u2)*ptemp);//+on(1,2,4,u1=0)+on(1,3,4,u2=0);//
+
+    [u1n,u2n]=[u1exact(0),u2exact(0)];//u1exact(0);=u2exact(0);
+    pn=pexact(0);
+    for(int i=1;i<tnum+1;i++){
+        t=i*dt;
+        cout<<t<<endl;
+        f1n=f1(t);f2n=f2(t);g2n=g2(t);g3n=g3(t);
+        project=-1;
+        [u1nsubtract1,u2nsubtract1]=[u1n,u2n];
+        pnsubtract1=pn;
+        matrix Bright=b(Vh,Wh);//121*882
+        matrix M=mass(Vh,Vh,solver=UMFPACK);
+        [u1temp, u2temp] = [u1n, u2n];
+        ptemp=pn;
+        //int projectiter=1;
+        real[int] f=firstright(0,Vh);
+            while(1){//压力投影
+                while(1){//newton迭代
+                matrix Afinal=rectifieda(Vh,Vh,solver=UMFPACK);
+                real[int] Av=secondrightAv(0,Vh);
+                real[int] Nvv=secondrightNv(0,Vh);
+                real[int] Bv=secondrightBv(0,Wh);
+                real[int] Bp=secondrightBp(0,Vh);
+                real[int] secondright=Av+Nvv;secondright+=Bp;secondright-=f;
+                Wh uzawap=ptemp;
+                real[int] uzawad(Vh.ndof);real[int] temp(Vh.ndof);real[int] vksub1(Vh.ndof);real[int] pksub1(Wh.ndof);
+                pksub1=uzawap[];
+                temp=Bright'*uzawap[];temp*=-1;temp+=secondright;
+                uzawad=Afinal^-1*(temp);
+                vksub1=uzawad;
+                real[int] pok(Wh.ndof);pok=Bright*uzawad;pok-=Bv;uzawap[]+=rho*(pok);
+                int uzawanum=0;
+                while(1){
+                    //使用预处理uzawa
+                    temp=Bright'*uzawap[];
+                    temp*=-1;
+                    temp+=secondright;
+                    uzawad=Afinal^-1*(temp);
+                    real[int] wk=vksub1-uzawad;
+                    vksub1=uzawad;
+                    real[int] yksub1=Bright*wk;
+                    real[int] sksub1=uzawap[]-pksub1;
+                    real alphak=sksub1'*yksub1;
+                    alphak/=(sksub1'*sksub1);
+                    pksub1=uzawap[];
+                    pok=Bright*uzawad;
+                    pok-=Bv;
+                    uzawap[]+=alphak*(pok);
+                    uzawanum++;
+                    if (alphak*(pok.linfty)<1e-6) break;
+                }
+                real err=uzawad.linfty;
+                cout<<"err is"<<err<<endl;
+                if(err<5e-6) break;
+                u1temp[]-=uzawad;
+                ptemp[]-=uzawap[];
+                if(err>100) break;
+            }
+            [u1n,u2n]=[u1temp,u2temp];
+            //plot([u1n,u2n],value=true,wait=1,fill=1);
+            //Vh [err1,err2]=[u1n-u1exact(t),u2n-u2exact(t)];
+            //Vh [uu,vv]=[u1exact(t),u2exact(t)];
+            //plot([err1,err2], value=true, wait=1, fill=1);
+            real L2erroru1 = sqrt(int2d(Th)((u1n - u1exact(t))^2))/sqrt(int2d(Th)(u1exact(t)^2));
+            real L2erroru2 = sqrt(int2d(Th)((u2n - u2exact(t))^2))/sqrt(int2d(Th)(u2exact(t)^2));
+            real L2errorp = sqrt(int2d(Th)((pn - pexact(t))^2))/sqrt(int2d(Th)(pexact(t)^2));
+
+            VVh projectold=project;
+            project = satur(project+rho*g2n*u2n-rho*g3n*u1n);
+            real projecterror = sqrt(int1d(Th,2,3)((project - projectold)^2))/sqrt(int1d(Th,2,3)(projectold^2));
+            if(projecterror<1e-5) break;
+            //if(projectiter==1) break;
+        }
+        //plot(project,value=true,wait=1,fill=1);
+    }
+    Vh [err1,err2]=[u1n-u1exact(t),u2n-u2exact(t)];
+    Vh [uu,vv]=[u1exact(t),u2exact(t)];
+    plot([err1,err2], value=true, wait=1, fill=1);
+    plot([u1n,u2n],value=1,wait=1,ps=string(nn)+"NSsolve.eps");
+    plot(pn,fill=1,value=1,wait=1,ps=string(nn)+"pressure.eps");
+    //cout << "t=" << t << " - L^2-Error=" << sqrt(int2d(Th)((u1n-u1exact(T))^2)+int2d(Th)((u2n-u2exact(T))^2)) << endl;
+    real L2velerr=sqrt(int2d(Th)((u1n-u1exact(T))^2)+int2d(Th)((u2n-u2exact(T))^2));
+    real L2errorp = sqrt(int2d(Th)((pn - pexact(T))^2));//sqrt(int2d(Th)(pexact(t)^2));
+    cout << "Time: " << t << ", L2 error: " <<  L2velerr << ", L2 error p: " << L2errorp << endl;
+    aerr(meshi)=L2velerr;
+    if(meshi>0){
+        order(meshi)=-log(aerr(meshi)/aerr(meshi-1))/log(nn/(nn-2.0));
+        cout<<"order="<<order(meshi)<<endl;
+    }
+    nn=nn+2;
+}

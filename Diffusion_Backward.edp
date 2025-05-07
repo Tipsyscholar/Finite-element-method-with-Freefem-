@@ -1,0 +1,38 @@
+int num=4;
+real T=0.25,t;
+include "Exact.edp"
+macro a(k) (1+k*k)//
+macro f(k) (-k+2*pi^2*(1+k*k)*k)//
+real[int] aerr(5),order(5);
+for(int n=0;n<5;n++){
+    real dt=T/num/num*8;
+    mesh Th=square(num,num);
+    fespace Vh(Th,P1);
+    Vh v,usubtract1,un,g;
+    
+    varf A(u,v)=int2d(Th)(dt*a(usubtract1)*dx(u)*dx(v)+dt*a(usubtract1)*dy(u)*dy(v))
+    +int2d(Th)(u*v)
+    +on(1,2,3,4,u=0);
+
+    varf right(u,v)=int2d(Th)(dt*g*v+dt*f(usubtract1)*v+usubtract1*v)
+
+    +on(1,2,3,4,u=0);
+    un=uexact(0);
+    for(int i=1;i<T/dt+1;i++){
+        t=i*dt;
+        cout<<t<<endl;
+        usubtract1[]=un[];
+        g=gexact(t);
+        matrix tildeA=A(Vh,Vh,solver=UMFPACK);
+        real[int] rhs=right(0,Vh);
+        un[]=tildeA^(-1)*rhs;
+    }
+    plot(un,value=1,wait=1,ps=string(num)+"ubkk=2h^2solve.eps");
+    cout << "t=" << t << " - L^2-Error=" << sqrt(int2d(Th)((un-exp(-t)*sin(pi*x)*sin(pi*y))^2)) << endl;
+    aerr(n)=sqrt(int2d(Th)((un-exp(-t)*sin(pi*x)*sin(pi*y))^2));
+    if(n>0){
+        order(n)=-log(aerr(n)/aerr(n-1))/log(2.0);
+        cout<<"order="<<order(n)<<endl;
+    }
+    num=num*2;
+}

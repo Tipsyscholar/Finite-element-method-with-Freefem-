@@ -1,0 +1,50 @@
+int num=4;
+real T=0.25,t;
+include "Exact.edp"
+macro a(k) (1+k*k)//
+macro f(k) (-k+2*pi^2*(1+k*k)*k)//
+real[int] aerr(6),order(6);
+for(int n=0;n<6;n++){
+    real dt=T/num;
+    mesh Th=square(num,num);
+    fespace Vh(Th,P1);
+    Vh v,usubtract1,usubtract2,hatu,un,g,u10,u1,baru;
+
+    varf A(u,v)=int2d(Th)(0.5*dt*a(hatu)*(dx(u)*dx(v)+dy(u)*dy(v)))
+    +int2d(Th)(u*v)
+    +on(1,2,3,4,u=0);
+
+    varf right(u,v)=int2d(Th)(dt*g*v+dt*f(hatu)*v+usubtract1*v-0.5*dt*a(hatu)*(dx(usubtract1)*dx(v)+dy(usubtract1)*dy(v)))
+    +on(1,2,3,4,u=0);
+    
+    usubtract1=uexact(0);
+    hatu=usubtract1;
+    g=gexact(0.5*dt);
+    matrix tildeA=A(Vh,Vh,solver=UMFPACK);
+    real[int] rhs=right(0,Vh);
+    un[]=tildeA^(-1)*rhs;
+    u10=un;
+    hatu=(u10+usubtract1)/2.0;
+    tildeA=A(Vh,Vh,solver=UMFPACK);
+    rhs=right(0,Vh);
+    un[]=tildeA^(-1)*rhs;
+    for(int i=2;i<T/dt+1;i++){
+        t=(2*i-1)*dt/2.0;
+        usubtract2[]=usubtract1[];
+        usubtract1[]=un[];
+        hatu=3*usubtract1/2.0-usubtract2/2.0;
+        g=gexact(t);
+        tildeA=A(Vh,Vh,solver=UMFPACK);
+        rhs=right(0,Vh);
+        un[]=tildeA^(-1)*rhs;
+    }
+    t+=0.5*dt;
+    plot(un,value=1,wait=1,ps=string(num)+"ucnk=hsolve.eps");
+    cout << "t=" << t << " - L^2-Error=" << sqrt(int2d(Th)((un-exp(-t)*sin(pi*x)*sin(pi*y))^2)) << endl;
+    aerr(n)=sqrt(int2d(Th)((un-exp(-t)*sin(pi*x)*sin(pi*y))^2));
+    if(n>0){
+        order(n)=-log(aerr(n)/aerr(n-1))/log(2.0);
+        cout<<"order="<<order(n)<<endl;
+    }
+    num=num*2;
+}

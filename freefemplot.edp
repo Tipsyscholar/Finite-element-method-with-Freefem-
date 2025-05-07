@@ -1,0 +1,13 @@
+include "Exact.edp"
+mesh Th=square(8,8);
+fespace Vh(Th,[P2,P2]);
+Vh [u1exactplot,u2exactplot]=[u1exact(0.25),u2exact(0.25)];
+plot([u1exactplot,u2exactplot],fill=1,value=1,wait=1,ps="Navier_Stokes_exact.eps"); 
+
+fespace Uh(Th,P1);
+Uh diffuexact=uexact(0.25);
+plot(diffuexact,fill=1,value=1,wait=1,ps="Diffusion_exact.eps");
+
+fespace Kh(Th,P1);
+Kh pplot=pexact(0.25);
+plot(pplot,fill=1,value=1,wait=1,ps="P_exact.eps");
